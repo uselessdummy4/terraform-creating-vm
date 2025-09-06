@@ -51,4 +51,4 @@ jobs:
 
       # 8️⃣ Show EC2 names and IPs
       - name: Output EC2 Name-IP Map
-        run: terraform output ec2_name_ip_map
+        run: terraform output -state=terraform.tfstate ec2_name_ip_map
