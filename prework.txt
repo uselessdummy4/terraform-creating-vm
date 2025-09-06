@@ -1,0 +1,3 @@
+Always update secrets values by going through 
+
+Settings -> secrets and variables -> Actions -> Repository secrets
