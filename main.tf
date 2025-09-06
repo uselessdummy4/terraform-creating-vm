@@ -1,8 +1,23 @@
+# -----------------------------
+# TLS Private Key
+# -----------------------------
 resource "tls_private_key" "host_key" {
   algorithm = "RSA"
   rsa_bits  = 2048
 }
 
+# -----------------------------
+# Save Private Key to File
+# -----------------------------
+resource "local_file" "private_key_file" {
+  content         = tls_private_key.host_key.private_key_pem
+  filename        = "host.pem"
+  file_permission = "0400"
+}
+
+# -----------------------------
+# AWS Key Pair
+# -----------------------------
 resource "aws_key_pair" "host_key" {
   key_name   = "host-tf"
   public_key = tls_private_key.host_key.public_key_openssh
@@ -12,6 +27,9 @@ resource "aws_key_pair" "host_key" {
   }
 }
 
+# -----------------------------
+# VPC
+# -----------------------------
 resource "aws_vpc" "main_vpc" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -22,6 +40,10 @@ resource "aws_vpc" "main_vpc" {
     created = "github action#1"
   }
 }
+
+# -----------------------------
+# Subnet
+# -----------------------------
 resource "aws_subnet" "main_subnet" {
   vpc_id                  = aws_vpc.main_vpc.id
   cidr_block              = var.subnet_cidr
@@ -34,6 +56,9 @@ resource "aws_subnet" "main_subnet" {
   }
 }
 
+# -----------------------------
+# Internet Gateway
+# -----------------------------
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main_vpc.id
 
@@ -43,7 +68,9 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-
+# -----------------------------
+# Route Table
+# -----------------------------
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main_vpc.id
 
@@ -58,11 +85,17 @@ resource "aws_route_table" "public_rt" {
   }
 }
 
+# -----------------------------
+# Route Table Association
+# -----------------------------
 resource "aws_route_table_association" "public_assoc" {
   subnet_id      = aws_subnet.main_subnet.id
   route_table_id = aws_route_table.public_rt.id
 }
 
+# -----------------------------
+# Security Group
+# -----------------------------
 resource "aws_security_group" "ssh_sg" {
   name        = "ssh-sg"
   description = "Allow SSH inbound"
@@ -89,6 +122,9 @@ resource "aws_security_group" "ssh_sg" {
   }
 }
 
+# -----------------------------
+# EC2 Instances
+# -----------------------------
 resource "aws_instance" "ubuntu_ec2" {
   for_each = { for idx, name in var.instance_names : idx => name }
 
@@ -109,5 +145,3 @@ resource "aws_instance" "ubuntu_ec2" {
     created = "github action#1"
   }
 }
-
-
