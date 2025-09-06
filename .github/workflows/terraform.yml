@@ -3,22 +3,10 @@ name: Terraform Apply
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-  workflows: write
-
 jobs:
   terraform:
     runs-on: ubuntu-latest
     steps:
-      # 0️⃣ Call Cleanup workflow
-      - name: Trigger Cleanup Workflow
-        uses: peter-evans/workflow-dispatch@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          workflow: "cleanup.yml"
-          ref: main
 
       # 1️⃣ Checkout repo
       - name: Checkout repository
