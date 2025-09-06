@@ -19,21 +19,24 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
 
-      # 3️⃣ Delete EC2 Instances
+      # 3️⃣ Terminate EC2 Instances
       - name: Delete EC2 Instances
         run: |
           for NAME in web1 web2; do
-            INSTANCE_ID=$(aws ec2 describe-instances \
+            INSTANCE_IDS=$(aws ec2 describe-instances \
               --filters "Name=tag:Name,Values=$NAME" \
               --query "Reservations[].Instances[].InstanceId" --output text)
-            if [ -n "$INSTANCE_ID" ]; then
-              echo "Terminating instance $NAME ($INSTANCE_ID)"
-              aws ec2 terminate-instances --instance-ids $INSTANCE_ID
-              aws ec2 wait instance-terminated --instance-ids $INSTANCE_ID
+            if [ -n "$INSTANCE_IDS" ]; then
+              echo "Terminating instance(s) $NAME: $INSTANCE_IDS"
+              aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
+              aws ec2 wait instance-terminated --instance-ids $INSTANCE_IDS
+              echo "$NAME terminated"
+            else
+              echo "No instance found with name $NAME"
             fi
           done
 
-      # 4️⃣ Delete Security Group
+      # 4️⃣ Delete Security Group (after EC2 is gone)
       - name: Delete Security Group
         run: |
           SG_ID=$(aws ec2 describe-security-groups \
@@ -42,10 +45,12 @@ jobs:
           if [ -n "$SG_ID" ]; then
             echo "Deleting Security Group ssh-sg ($SG_ID)"
             aws ec2 delete-security-group --group-id $SG_ID
+          else
+            echo "Security Group ssh-sg not found"
           fi
 
-      # 5️⃣ Delete Route Table Association
-      - name: Delete Route Table Association
+      # 5️⃣ Disassociate and Delete Route Table
+      - name: Delete Route Table Association & Table
         run: |
           SUBNET_ID=$(aws ec2 describe-subnets \
             --filters "Name=tag:Name,Values=main-subnet" \
@@ -53,26 +58,23 @@ jobs:
           RT_ID=$(aws ec2 describe-route-tables \
             --filters "Name=tag:Name,Values=public-rt" \
             --query "RouteTables[].RouteTableId" --output text)
-          ASSOC_ID=$(aws ec2 describe-route-tables \
+          
+          # Disassociate
+          ASSOCIATIONS=$(aws ec2 describe-route-tables \
             --route-table-ids $RT_ID \
-            --query "RouteTables[].Associations[?SubnetId=='$SUBNET_ID'].RouteTableAssociationId" \
-            --output text)
-          if [ -n "$ASSOC_ID" ]; then
-            aws ec2 disassociate-route-table --association-id $ASSOC_ID
-            echo "Disassociated route table from subnet"
-          fi
-
-      # 6️⃣ Delete Route Table
-      - name: Delete Route Table
-        run: |
-          RT_ID=$(aws ec2 describe-route-tables \
-            --filters "Name=tag:Name,Values=public-rt" \
-            --query "RouteTables[].RouteTableId" --output text)
+            --query "RouteTables[].Associations[].RouteTableAssociationId" --output text)
+          for ASSOC in $ASSOCIATIONS; do
+            aws ec2 disassociate-route-table --association-id $ASSOC
+            echo "Disassociated $ASSOC"
+          done
+          
+          # Delete route table
           if [ -n "$RT_ID" ]; then
             aws ec2 delete-route-table --route-table-id $RT_ID
+            echo "Deleted route table $RT_ID"
           fi
 
-      # 7️⃣ Delete Internet Gateway
+      # 6️⃣ Delete Internet Gateway
       - name: Delete Internet Gateway
         run: |
           IGW_ID=$(aws ec2 describe-internet-gateways \
@@ -85,9 +87,12 @@ jobs:
               aws ec2 detach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID
             fi
             aws ec2 delete-internet-gateway --internet-gateway-id $IGW_ID
+            echo "Deleted IGW $IGW_ID"
+          else
+            echo "Internet Gateway not found"
           fi
 
-      # 8️⃣ Delete Subnet
+      # 7️⃣ Delete Subnet
       - name: Delete Subnet
         run: |
           SUBNET_ID=$(aws ec2 describe-subnets \
@@ -95,9 +100,12 @@ jobs:
             --query "Subnets[].SubnetId" --output text)
           if [ -n "$SUBNET_ID" ]; then
             aws ec2 delete-subnet --subnet-id $SUBNET_ID
+            echo "Deleted subnet $SUBNET_ID"
+          else
+            echo "Subnet not found"
           fi
 
-      # 9️⃣ Delete VPC
+      # 8️⃣ Delete VPC
       - name: Delete VPC
         run: |
           VPC_ID=$(aws ec2 describe-vpcs \
@@ -105,9 +113,12 @@ jobs:
             --query "Vpcs[].VpcId" --output text)
           if [ -n "$VPC_ID" ]; then
             aws ec2 delete-vpc --vpc-id $VPC_ID
+            echo "Deleted VPC $VPC_ID"
+          else
+            echo "VPC not found"
           fi
 
-      # 🔟 Delete Key Pair
+      # 9️⃣ Delete Key Pair
       - name: Delete Key Pair
         run: |
           KEY_NAME="host-tf"
