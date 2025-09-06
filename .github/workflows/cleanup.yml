@@ -22,7 +22,7 @@ jobs:
       # 3️⃣ Terminate EC2 Instances
       - name: Delete EC2 Instances
         run: |
-          for NAME in web1 web2; do
+          for NAME in web-1 web-2; do
             INSTANCE_IDS=$(aws ec2 describe-instances \
               --filters "Name=tag:Name,Values=$NAME" \
               --query "Reservations[].Instances[].InstanceId" --output text)
