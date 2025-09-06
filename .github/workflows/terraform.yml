@@ -1,0 +1,54 @@
+name: Terraform Apply
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0
+
+      # 3️⃣ Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      # 4️⃣ Terraform init
+      - name: Terraform Init
+        run: terraform init
+
+      # 5️⃣ Terraform plan
+      - name: Terraform Plan
+        run: terraform plan
+
+      # 6️⃣ Terraform apply
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      # 7️⃣ Upload SSH private key as artifact
+      - name: Upload private key
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: host-tf-key
+          path: host.pem
+          retention-days: 30
+
+      # 8️⃣ Show EC2 names and IPs
+      - name: Output EC2 Name-IP Map
+        run: terraform output ec2_name_ip_map
