@@ -61,10 +61,6 @@ resource "aws_route_table" "public_rt" {
 resource "aws_route_table_association" "public_assoc" {
   subnet_id      = aws_subnet.main_subnet.id
   route_table_id = aws_route_table.public_rt.id
-
-  tags = {
-    created = "github action#1"
-  }
 }
 
 resource "aws_security_group" "ssh_sg" {
