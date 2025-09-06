@@ -43,7 +43,7 @@ jobs:
       # 7️⃣ Upload SSH private key as artifact
       - name: Upload private key
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: host-tf-key
           path: host.pem
