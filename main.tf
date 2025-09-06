@@ -1,6 +1,3 @@
-# -----------------------------
-# Generate SSH key pair
-# -----------------------------
 resource "tls_private_key" "host_key" {
   algorithm = "RSA"
   rsa_bits  = 2048
@@ -9,42 +6,44 @@ resource "tls_private_key" "host_key" {
 resource "aws_key_pair" "host_key" {
   key_name   = "host-tf"
   public_key = tls_private_key.host_key.public_key_openssh
+
+  tags = {
+    created = "github action#1"
+  }
 }
 
-# -----------------------------
-# VPC
-# -----------------------------
 resource "aws_vpc" "main_vpc" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
 
-  tags = { Name = "main-vpc" }
+  tags = {
+    Name    = "main-vpc"
+    created = "github action#1"
+  }
 }
-
-# -----------------------------
-# Subnet
-# -----------------------------
 resource "aws_subnet" "main_subnet" {
   vpc_id                  = aws_vpc.main_vpc.id
   cidr_block              = var.subnet_cidr
   map_public_ip_on_launch = true
   availability_zone       = "${var.aws_region}a"
 
-  tags = { Name = "main-subnet" }
+  tags = {
+    Name    = "main-subnet"
+    created = "github action#1"
+  }
 }
 
-# -----------------------------
-# Internet Gateway
-# -----------------------------
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main_vpc.id
-  tags   = { Name = "main-igw" }
+
+  tags = {
+    Name    = "main-igw"
+    created = "github action#1"
+  }
 }
 
-# -----------------------------
-# Route Table
-# -----------------------------
+
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.main_vpc.id
 
@@ -53,17 +52,21 @@ resource "aws_route_table" "public_rt" {
     gateway_id = aws_internet_gateway.igw.id
   }
 
-  tags = { Name = "public-rt" }
+  tags = {
+    Name    = "public-rt"
+    created = "github action#1"
+  }
 }
 
 resource "aws_route_table_association" "public_assoc" {
   subnet_id      = aws_subnet.main_subnet.id
   route_table_id = aws_route_table.public_rt.id
+
+  tags = {
+    created = "github action#1"
+  }
 }
 
-# -----------------------------
-# Security Group
-# -----------------------------
 resource "aws_security_group" "ssh_sg" {
   name        = "ssh-sg"
   description = "Allow SSH inbound"
@@ -84,14 +87,14 @@ resource "aws_security_group" "ssh_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = { Name = "ssh-sg" }
+  tags = {
+    Name    = "ssh-sg"
+    created = "github action#1"
+  }
 }
 
-# -----------------------------
-# EC2 Instances (loop for multiple)
-# -----------------------------
 resource "aws_instance" "ubuntu_ec2" {
-  for_each = { for i in range(var.instance_count) : i => "ubuntu-${i+1}" }
+  for_each = { for idx, name in var.instance_names : idx => name }
 
   ami                         = var.ami
   instance_type               = var.instance_type
@@ -106,15 +109,9 @@ resource "aws_instance" "ubuntu_ec2" {
   }
 
   tags = {
-    Name = each.value
+    Name    = each.value
+    created = "github action#1"
   }
 }
 
-# -----------------------------
-# Save private key to local file
-# -----------------------------
-resource "local_file" "private_key_file" {
-  content         = tls_private_key.host_key.private_key_pem
-  filename        = "host.pem"
-  file_permission = "0400"
-}
+
