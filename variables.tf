@@ -28,6 +28,12 @@ variable "ami" {
   default     = "ami-0a313d6098716f372" # us-east-1
 }
 
+variable "instance_names" {
+  description = "List of names for EC2 instances"
+  type        = list(string)
+  default     = ["web-1", "web-2"]  # you can override when applying
+}
+
 variable "instance_count" {
   description = "Number of EC2 instances"
   type        = number
