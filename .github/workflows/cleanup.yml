@@ -1,0 +1,118 @@
+name: Terraform Safe Cleanup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      # 3️⃣ Delete EC2 Instances
+      - name: Delete EC2 Instances
+        run: |
+          INSTANCE_IDS=$(aws ec2 describe-instances \
+            --filters "Name=tag:created,Values=github action#1" \
+            --query "Reservations[].Instances[].InstanceId" \
+            --output text)
+          if [ -n "$INSTANCE_IDS" ]; then
+            echo "Terminating instances: $INSTANCE_IDS"
+            aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
+            aws ec2 wait instance-terminated --instance-ids $INSTANCE_IDS
+          else
+            echo "No EC2 instances found with tag"
+          fi
+
+      # 4️⃣ Delete Security Groups
+      - name: Delete Security Groups
+        run: |
+          SG_IDS=$(aws ec2 describe-security-groups \
+            --filters "Name=tag:created,Values=github action#1" \
+            --query "SecurityGroups[].GroupId" --output text)
+          for SG in $SG_IDS; do
+            echo "Deleting SG: $SG"
+            aws ec2 delete-security-group --group-id $SG || echo "Could not delete $SG"
+          done
+
+      # 5️⃣ Delete Route Table Associations
+      - name: Delete Route Table Associations
+        run: |
+          ASSOCIATION_IDS=$(aws ec2 describe-route-tables \
+            --filters "Name=tag:created,Values=github action#1" \
+            --query "RouteTables[].Associations[].RouteTableAssociationId" --output text)
+          for ASSOC_ID in $ASSOCIATION_IDS; do
+            echo "Disassociating Route Table Association: $ASSOC_ID"
+            aws ec2 disassociate-route-table --association-id $ASSOC_ID
+          done
+
+      # 6️⃣ Delete Route Tables
+      - name: Delete Route Tables
+        run: |
+          ROUTE_TABLE_IDS=$(aws ec2 describe-route-tables \
+            --filters "Name=tag:created,Values=github action#1" \
+            --query "RouteTables[].RouteTableId" --output text)
+          for RT_ID in $ROUTE_TABLE_IDS; do
+            echo "Deleting Route Table: $RT_ID"
+            aws ec2 delete-route-table --route-table-id $RT_ID
+          done
+
+      # 7️⃣ Delete Internet Gateways
+      - name: Delete Internet Gateways
+        run: |
+          IGW_IDS=$(aws ec2 describe-internet-gateways \
+            --filters "Name=tag:created,Values=github action#1" \
+            --query "InternetGateways[].InternetGatewayId" --output text)
+          for IGW in $IGW_IDS; do
+            VPC_ID=$(aws ec2 describe-internet-gateways --internet-gateway-ids $IGW \
+                     --query "InternetGateways[0].Attachments[0].VpcId" --output text)
+            if [ -n "$VPC_ID" ]; then
+              echo "Detaching IGW $IGW from VPC $VPC_ID"
+              aws ec2 detach-internet-gateway --internet-gateway-id $IGW --vpc-id $VPC_ID
+            fi
+            echo "Deleting IGW $IGW"
+            aws ec2 delete-internet-gateway --internet-gateway-id $IGW
+          done
+
+      # 8️⃣ Delete Subnets
+      - name: Delete Subnets
+        run: |
+          SUBNET_IDS=$(aws ec2 describe-subnets \
+            --filters "Name=tag:created,Values=github action#1" \
+            --query "Subnets[].SubnetId" --output text)
+          for SUBNET in $SUBNET_IDS; do
+            echo "Deleting Subnet: $SUBNET"
+            aws ec2 delete-subnet --subnet-id $SUBNET
+          done
+
+      # 9️⃣ Delete VPCs
+      - name: Delete VPCs
+        run: |
+          VPC_IDS=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:created,Values=github action#1" \
+            --query "Vpcs[].VpcId" --output text)
+          for VPC in $VPC_IDS; do
+            echo "Deleting VPC: $VPC"
+            aws ec2 delete-vpc --vpc-id $VPC
+          done
+
+      # 🔟 Delete Key Pairs
+      - name: Delete Key Pairs
+        run: |
+          KEY_NAMES=$(aws ec2 describe-key-pairs \
+            --filters "Name=tag:created,Values=github action#1" \
+            --query "KeyPairs[].KeyName" --output text)
+          for KEY in $KEY_NAMES; do
+            echo "Deleting Key Pair: $KEY"
+            aws ec2 delete-key-pair --key-name $KEY
+          done
